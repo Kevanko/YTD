@@ -9,8 +9,11 @@
 
 ---
 
+## 📸 Скриншоты
+
 ![Главный экран](screens/main.png)
-![Загруженно видео](screens/video.png)
+![Загруженное видео](screens/video.png)
+
 ---
 
 ## 🚀 Возможности
@@ -25,6 +28,7 @@
 
 ## ⚡ Установка
 
+
 ### 1. Клонируй репозиторий
 ```bash
 git clone https://github.com/Kevanko/YTD.git
@@ -32,29 +36,33 @@ cd YTD
 
 
 ### 2. Установи зависимости
-- 1. Python 3
-```bash
-sudo apt install python3-pip   # (Debian/Ubuntu)
-sudo dnf install python3-pip   # (Fedora)
-brew install python            # (macOS + Homebrew)
 
-python --version
+**Python 3**  
+Убедись, что Python установлен. На разных системах это делается так:  
+- Debian/Ubuntu: `sudo apt install python3-pip`  
+- Fedora: `sudo dnf install python3-pip`  
+- macOS (Homebrew): `brew install python`  
 
-- 2. yt-dlp (основной инструмент)
-```bash
-pip install -U yt-dlp
-yt-dlp --version
+Проверить версию Python: `python --version`
 
-- 3. ffmpeg
-```bash
-sudo apt install ffmpeg   # Debian/Ubuntu
-sudo dnf install ffmpeg   # Fedora
-brew install ffmpeg # (macOS)
+**yt-dlp**  
+Установи основной инструмент для скачивания:  
+`pip install -U yt-dlp`  
+Проверить версию: `yt-dlp --version`
 
-### 3. Запусти
-```bash
-python3 add.py
-- Программа будет доступна по адрессу: 
-http://127.0.0.1:5000/ 
-- Либо
-localhost:5000
+**ffmpeg**  
+Установи ffmpeg для обработки аудио и видео:  
+- Debian/Ubuntu: `sudo apt install ffmpeg`  
+- Fedora: `sudo dnf install ffmpeg`  
+- macOS: `brew install ffmpeg`
+
+### 3. Запуск
+Для запуска программы используй:  
+`python3 add.py`
+
+Программа будет доступна по адресу:  
+[http://127.0.0.1:5000/](http://127.0.0.1:5000/)  
+или  
+[http://localhost:5000](http://localhost:5000)
+
+---
