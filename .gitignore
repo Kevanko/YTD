@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.env
+*.venv
+env/
+venv/
+ENV/
+.env/
+*.egg-info/
+dist/
+build/
+
+# VSCode
+.vscode/
+.history/
+
+# MacOS
+.DS_Store
+
+# Logs
+*.log
+
+# Node / frontend (если будут)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Database / local files
+*.sqlite3
+*.db
+
+# Downloads / temporary files
+downloads/
+*.tmp
+
+# Static files that may be generated
+/static/*.cache
+/static/*.min.js
+/static/*.min.css
