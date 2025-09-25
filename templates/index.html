@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YTD — Modern Video Downloader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="background-stripes" aria-hidden="true"></div>
+
+    <div id="water-rays-wrap" aria-hidden="true">
+      <canvas id="water-rays"></canvas>
+    </div>
+
+    <div id="background-glow" aria-hidden="true" class="animate"></div>
+
+    <canvas id="particles" aria-hidden="true"></canvas>
+
+    <div class="container" role="main" aria-live="polite">
+        <header>
+            <h1 id="app-title" title="YTD">YTD — Modern Video Downloader</h1>
+            <p>Скачайте видео или аудио с YouTube и других сайтов</p>
+        </header>
+
+        <div class="input-section">
+            <input type="text" id="url" placeholder="https://youtu.be/..." aria-label="URL видео" />
+            <button id="fetch-btn" class="btn-primary">Получить информацию</button>
+        </div>
+
+        <div id="preview" class="preview hidden" aria-hidden="true">
+            <img id="preview-image" src="" alt="Превью" />
+            <div class="preview-info">
+                <h3 id="preview-title" class="ellipsis" title="">Загрузка...</h3>
+                <p id="preview-duration">—</p>
+            </div>
+        </div>
+
+        <div class="filters hidden" id="filters">
+            <select id="filter-type" aria-label="Фильтр по типу" style="display:none;">
+                <option value="all">Все форматы</option>
+                <option value="audio">Только аудио</option>
+                <option value="video">Только видео</option>
+            </select>
+
+            <div id="custom-filter" class="custom-select" role="listbox" tabindex="0" aria-label="Фильтр по типу">
+                <div class="custom-select__current" id="custom-filter-current" aria-hidden="true">Все форматы ▾</div>
+                <div class="custom-select__list hidden" id="custom-filter-list" role="menu" aria-hidden="true">
+                    <div class="option-item" role="option" data-value="all">Все форматы</div>
+                    <div class="option-item" role="option" data-value="audio">Только аудио</div>
+                    <div class="option-item" role="option" data-value="video">Только видео</div>
+                </div>
+            </div>
+
+            <div id="sort-buttons" class="sort-buttons" role="toolbar" aria-label="Сортировка">
+                <button class="sort-button active" data-sort="default" title="По умолчанию">По умолчанию</button>
+                <button class="sort-button" data-sort="size-desc" title="По размеру (убыв.)">По размеру</button>
+                <button class="sort-button" data-sort="quality" title="По качеству">По качеству</button>
+                <button class="sort-button" data-sort="format" title="По формату">По формату</button>
+            </div>
+        </div>
+
+        <div id="formats" class="formats hidden" aria-live="polite">
+            <h3>📁 Доступные форматы:</h3>
+            <div id="formats-list" class="formats-grid"></div>
+        </div>
+
+        <div id="progress" class="card hidden" aria-hidden="true">
+            <div class="spinner" role="status" aria-hidden="true"></div>
+            <p id="status-text">Подготовка...</p>
+        </div>
+
+        <div id="error" class="card error hidden" role="alert"></div>
+    </div>
+
+<script>
+/* particles (фон) - точки */
+const pcanvas = document.getElementById('particles');
+const pctx = pcanvas.getContext('2d');
+function resizeParticles(){ pcanvas.width = window.innerWidth; pcanvas.height = window.innerHeight; }
+resizeParticles(); window.addEventListener('resize', ()=>{ resizeParticles(); resizeRays(); });
+const particles = [], pcount = 60;
+class P{ constructor(){ this.x=Math.random()*pcanvas.width; this.y=Math.random()*pcanvas.height; this.s=Math.random()*2+0.5; this.vx=(Math.random()*0.6-0.3); this.vy=(Math.random()*0.6-0.3); this.c=`rgba(120,130,255,${Math.random()*0.24+0.06})`; } update(){ this.x+=this.vx; this.y+=this.vy; if(this.x<0||this.x>pcanvas.width) this.vx*=-1; if(this.y<0||this.y>pcanvas.height) this.vy*=-1 } draw(){ pctx.fillStyle=this.c; pctx.beginPath(); pctx.arc(this.x,this.y,this.s,0,Math.PI*2); pctx.fill(); } }
+for(let i=0;i<pcount;i++) particles.push(new P());
+(function panim(){ pctx.clearRect(0,0,pcanvas.width,pcanvas.height); pctx.fillStyle='rgba(0,0,0,0.02)'; pctx.fillRect(0,0,pcanvas.width,pcanvas.height); for(const p of particles){ p.update(); p.draw(); } requestAnimationFrame(panim); })();
+
+/* water rays (canvas) - подводное переливание */
+const raysCanvas = document.getElementById('water-rays');
+const rctx = raysCanvas.getContext('2d');
+let raysW=0, raysH=0;
+function resizeRays(){ raysCanvas.width = raysW = window.innerWidth; raysCanvas.height = raysH = Math.max(window.innerHeight * 0.36, 220); }
+resizeRays();
+
+let t0 = 0;
+function drawRays(ts){
+    t0 = ts/1000;
+    rctx.clearRect(0,0,raysW,raysH);
+
+    const g = rctx.createLinearGradient(0,0,0,raysH);
+    g.addColorStop(0, 'rgba(12,12,20,0.85)');
+    g.addColorStop(0.6, 'rgba(12,12,20,0.0)');
+    rctx.fillStyle = g;
+    rctx.fillRect(0,0,raysW,raysH);
+
+    rctx.globalCompositeOperation = 'lighter';
+    for(let layer=0; layer<3; layer++){
+        const hue = 230 + layer*8;
+        const alpha = 0.035 + layer*0.02;
+        rctx.fillStyle = `rgba(${hue}, ${hue}, 255, ${alpha})`;
+        rctx.beginPath();
+        const amp = 18 + layer*12;
+        const freq = 0.0022 + layer*0.0012;
+        const speed = 0.8 + layer*0.4;
+        rctx.moveTo(0, raysH);
+        for(let x=0;x<=raysW;x+=8){
+            const y = raysH*0.6 + Math.sin((x*freq) + t0*speed + layer)*amp*(1+Math.sin(x*0.001+layer));
+            rctx.lineTo(x, y);
+        }
+        rctx.lineTo(raysW, raysH);
+        rctx.closePath();
+        rctx.fill();
+    }
+    rctx.globalCompositeOperation = 'source-over';
+
+    rctx.globalAlpha = 0.06;
+    for(let i=0;i<60;i++){
+        const x = Math.random()*raysW;
+        const y = Math.random()*raysH;
+        const s = Math.random()*3;
+        rctx.fillStyle = `rgba(200,200,255,0.06)`;
+        rctx.fillRect(x,y,s,s);
+    }
+    rctx.globalAlpha = 1.0;
+
+    requestAnimationFrame(drawRays);
+}
+requestAnimationFrame(drawRays);
+
+/* основной код приложения */
+const baseUrl = window.location.origin;
+let currentFormats = [], videoTitle = "video", sortMode = "default";
+
+function showElement(id){ document.getElementById(id).classList.remove('hidden'); }
+function hideElement(id){ document.getElementById(id).classList.add('hidden'); }
+function showError(msg){ const el = document.getElementById('error'); el.textContent = msg; showElement('error'); setTimeout(()=>hideElement('error'),6000); }
+function showProgress(text){ document.getElementById('status-text').textContent = text; showElement('progress'); }
+function hideProgress(){ hideElement('progress'); }
+
+function parseRes(res){ if(!res||res==='—'||res==='Аудио') return 0; const m = res.match(/(\d+)[x×](\d+)/); return m?parseInt(m[2]):0; }
+function humanSize(bytes){ if(!bytes) return '—'; const units=['б','КБ','МБ','ГБ']; let i=0, val=bytes; while(val>1024&&i<units.length-1){ val/=1024; i++ } return val.toFixed(1)+' '+units[i]; }
+
+function applyFilters(){
+    const type = document.getElementById('filter-type').value;
+    let filtered = [...currentFormats];
+
+    if(type === 'audio') filtered = filtered.filter(f => f.acodec !== 'none' && f.vcodec === 'none');
+    else if(type === 'video') filtered = filtered.filter(f => f.vcodec !== 'none');
+
+    if(sortMode === 'size-asc') filtered.sort((a,b)=>(a.filesize||0)-(b.filesize||0));
+    else if(sortMode === 'size-desc') filtered.sort((a,b)=>(b.filesize||0)-(a.filesize||0));
+    else if(sortMode === 'quality'){
+        filtered.sort((a,b)=>{
+            const aAudio = a.acodec!=='none' && a.vcodec==='none';
+            const bAudio = b.acodec!=='none' && b.vcodec==='none';
+            if(aAudio && !bAudio) return -1;
+            if(!aAudio && bAudio) return 1;
+            if(aAudio) return (b.tbr||0)-(a.tbr||0);
+            return parseRes(b.resolution)-parseRes(a.resolution);
+        });
+    } else if(sortMode === 'format') filtered.sort((a,b)=> (a.ext||'').localeCompare(b.ext||''));
+    renderFormats(filtered);
+}
+
+/* переключатель сортировки (текстовые кнопки) */
+document.querySelectorAll('.sort-button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+        document.querySelectorAll('.sort-button').forEach(x=>x.classList.remove('active'));
+        btn.classList.add('active');
+        sortMode = btn.dataset.sort;
+        applyFilters();
+    });
+});
+
+/* кастомный селект (фильтр) — улучшено: закрывается после выбора */
+(function setupCustomSelect(){
+    const real = document.getElementById('filter-type');
+    const selectWrap = document.getElementById('custom-filter');
+    const current = document.getElementById('custom-filter-current');
+    const list = document.getElementById('custom-filter-list');
+    const items = list.querySelectorAll('.option-item');
+
+    function setValue(val,text){
+        real.value = val;
+        current.textContent = text + ' ▾';
+        applyFilters();
+    }
+
+    items.forEach(it=>{
+        it.addEventListener('click', (e)=>{
+            e.stopPropagation();
+            setValue(it.dataset.value, it.textContent);
+            list.classList.add('hidden');
+        });
+    });
+
+    selectWrap.addEventListener('click', (e)=>{
+        e.stopPropagation();
+        list.classList.toggle('hidden');
+    });
+
+    // close on outside click
+    document.addEventListener('click', (e)=>{
+        if(!selectWrap.contains(e.target)) list.classList.add('hidden');
+    });
+
+    // keyboard support
+    selectWrap.addEventListener('keydown', (e)=>{
+        if(e.key === 'Enter' || e.key === ' ') {
+            list.classList.toggle('hidden'); e.preventDefault();
+        } else if(e.key === 'Escape') {
+            list.classList.add('hidden');
+        }
+    });
+})();
+
+function friendlyCodec(codec) {
+    if (!codec || codec === 'none') return null;
+    codec = codec.toLowerCase();
+    if (codec.startsWith('mp4a')) return 'aac';
+    if (codec.includes('opus')) return 'opus';
+    if (codec.includes('vorbis')) return 'vorbis';
+    if (codec.includes('mp3')) return 'mp3';
+    if (codec.includes('vp9')) return 'vp9';
+    if (codec.includes('av01')) return 'av1';
+    if (codec.includes('h264') || codec.includes('avc')) return 'h264';
+    return codec;
+}
+
+/* рендер карточек форматов: добавлена audio-toggle (правый верх),
+   и download-link НЕ показывается — скачивание стартует автоматически */
+function renderFormats(formats){
+    const container = document.getElementById('formats-list');
+    container.innerHTML = '';
+    if(!formats.length){ container.innerHTML = '<div class="format-card">Форматы не найдены</div>'; return; }
+
+    formats.forEach((f)=>{
+        const isAudio = f.acodec!=='none' && f.vcodec==='none';
+        const ext = (f.ext||'').toUpperCase();
+        const size = humanSize(f.filesize);
+        const resolution = f.resolution && f.resolution!=='—' ? f.resolution : null;
+
+        const meta = [ ext, resolution ? resolution : null, isAudio ? 'Аудио' : 'Видео' ].filter(Boolean).join(' · ');
+
+        const card = document.createElement('div');
+        card.className = 'format-card';
+        card.dataset.includeAudio = 'false';
+        card.innerHTML = `
+            <div class="format-badge ${isAudio ? 'badge-audio' : 'badge-video'}">${isAudio ? 'AUDIO' : 'VIDEO'}</div>
+
+            <button class="audio-toggle" title="Включить добавление аудио при скачивании" aria-pressed="false" type="button">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                  <path d="M5 9v6h4l5 4V5L9 9H5z"></path>
+                </svg>
+            </button>
+
+            <div class="format-info">
+                <div class="format-meta small">${meta}</div>
+                <div class="format-size small">${size}</div>
+            </div>
+
+            <div class="format-actions">
+                <button class="btn-download">Скачать</button>
+            </div>
+
+            <div class="download-status hidden">
+                <div class="spinner-small" aria-hidden="true"></div>
+                <span class="status-text">Подготовка...</span>
+                <div class="download-area" style="display:inline-flex;align-items:center;gap:8px;"></div>
+            </div>
+        `;
+
+        container.appendChild(card);
+
+        // audio toggle logic
+            const toggle = card.querySelector('.audio-toggle');
+            toggle.addEventListener('click', (e)=>{
+                e.stopPropagation();
+                const active = toggle.classList.toggle('on');
+                toggle.classList.remove('failed');
+                toggle.setAttribute('aria-pressed', active ? 'true' : 'false');
+                card.dataset.includeAudio = active ? 'true' : 'false';
+            });
+
+
+        // download button
+        const btn = card.querySelector('.btn-download');
+        btn.addEventListener('click', ()=>{
+            startDownloadForCard(card, f.format_id);
+        });
+    });
+
+    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+}
+
+/* start download: include_audio sent based on card.dataset.includeAudio.
+   Do NOT create visible download link — when ready, auto-trigger browser download. */
+async function startDownloadForCard(card, formatId){
+    const statusEl = card.querySelector('.download-status');
+    const statusText = card.querySelector('.status-text');
+    const btn = card.querySelector('.btn-download');
+    const toggle = card.querySelector('.audio-toggle');
+    statusEl.classList.remove('hidden');
+    btn.disabled = true;
+    statusText.textContent = "Отправка задания...";
+
+    const includeAudio = card.dataset.includeAudio === 'true';
+    if(includeAudio){
+        toggle.classList.add('on');
+        toggle.classList.add('processing');
+    } else {
+        toggle.classList.remove('processing');
+        toggle.classList.remove('failed');
+        toggle.classList.remove('on');
+        toggle.setAttribute('aria-pressed', 'false');
+    }
+
+    try {
+        const url = document.getElementById('url').value.trim();
+        const body = `url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(formatId)}&title=${encodeURIComponent(videoTitle)}&include_audio=${includeAudio}`;
+        const res = await fetch(`${baseUrl}/start`, {
+            method:'POST',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body
+        });
+        const data = await res.json();
+        if(data.error){
+            showError(data.error);
+            statusText.textContent='Ошибка';
+            setTimeout(()=>{ statusEl.classList.add('hidden'); btn.disabled=false; toggle.classList.remove('processing'); },2500);
+            return;
+        }
+        pollStatusForCard(data.task_id, card);
+    } catch(e){
+        showError("Ошибка сети при отправке задания");
+        statusText.textContent='Сеть';
+        setTimeout(()=>{ statusEl.classList.add('hidden'); btn.disabled=false; toggle.classList.remove('processing'); },2500);
+    }
+}
+
+/* poll status and auto-download when ready (no visible link). */
+function pollStatusForCard(taskId, card){
+    const statusText = card.querySelector('.status-text');
+    const toggle = card.querySelector('.audio-toggle');
+    const btn = card.querySelector('.btn-download');
+
+    const interval = setInterval(async ()=>{
+        try {
+            const res = await fetch(`${baseUrl}/status/${taskId}`);
+            const task = await res.json();
+            if(task.message) statusText.textContent = Array.isArray(task.message) ? task.message.join(' ') : task.message;
+
+            const audioState = task.audio_state || 'none';
+
+            if(audioState === 'pending'){
+                toggle.classList.add('processing');
+                toggle.classList.remove('failed');
+                toggle.classList.add('on');
+            } else if(audioState === 'ok'){
+                toggle.classList.remove('processing');
+                toggle.classList.remove('failed');
+                toggle.classList.add('on');
+                toggle.setAttribute('aria-pressed','true');
+            } else if(audioState === 'failed'){
+                toggle.classList.remove('processing');
+                toggle.classList.remove('on');
+                toggle.classList.add('failed');
+                toggle.setAttribute('aria-pressed','false');
+            } else {
+                toggle.classList.remove('processing');
+            }
+
+            if(task.status === 'done' || task.status === 'partial'){
+                clearInterval(interval);
+                const sp = card.querySelector('.spinner-small'); if(sp) sp.style.display='none';
+                // small UX: show brief status then trigger download
+                statusText.textContent = "Готово — начинаем загрузку...";
+                if(task.file_path){
+                    const fileName = task.file_path;
+                    // auto-download: create hidden link, click it, remove it
+                    const href = `${baseUrl}/download-file/${encodeURIComponent(fileName)}`;
+                    const a = document.createElement('a');
+                    a.href = href;
+                    a.download = fileName;
+                    a.style.display = 'none';
+                    // for some browsers set rel and target
+                    a.rel = 'noopener';
+                    document.body.appendChild(a);
+
+                    // small delay to let the UI update (0-300ms)
+                    setTimeout(()=> {
+                        try {
+                            a.click();
+                            statusText.textContent = "Загрузка запущена";
+                        } catch(e) {
+                            // fallback: reveal manual link if auto-click blocked
+                            showError("Автозагрузка заблокирована — появится ссылка для скачивания.");
+                            const downloadArea = card.querySelector('.download-area');
+                            downloadArea.innerHTML = '';
+                            const link = document.createElement('a');
+                            link.href = href;
+                            link.className = 'download-link';
+                            link.textContent = 'Скачать файл';
+                            link.setAttribute('download', fileName);
+                            link.rel = 'noopener';
+                            downloadArea.appendChild(link);
+                        } finally {
+                            try { document.body.removeChild(a); } catch(e){}
+                            btn.disabled = false;
+                            // hide status after short time
+                            setTimeout(()=> {
+                                const statusEl = card.querySelector('.download-status');
+                                if(statusEl) statusEl.classList.add('hidden');
+                            }, 1800);
+                        }
+                    }, 160);
+                } else {
+                    btn.disabled = false;
+                    setTimeout(()=> {
+                        const statusEl = card.querySelector('.download-status');
+                        if(statusEl) statusEl.classList.add('hidden');
+                    }, 1200);
+                }
+            } else if(task.status === 'failed'){
+                clearInterval(interval);
+                statusText.textContent='Ошибка';
+                toggle.classList.remove('processing');
+                toggle.classList.add('failed');
+                setTimeout(()=>{ card.querySelector('.download-status').classList.add('hidden'); btn.disabled=false; },2500);
+            }
+        } catch(e){
+            clearInterval(interval);
+            // network error — leave UI stable
+            btn.disabled = false;
+            toggle.classList.remove('processing');
+        }
+    }, 2000);
+}
+
+/* кнопка "Получить информацию" */
+document.getElementById('fetch-btn').addEventListener('click', async ()=>{
+    const url = document.getElementById('url').value.trim();
+    if(!url) return showError("Введите URL");
+    showProgress("Получение информации...");
+    hideElement('preview'); hideElement('formats'); hideElement('filters'); hideElement('error');
+
+    try {
+        const res = await fetch(`${baseUrl}/info`, {
+            method:'POST',
+            headers:{'Content-Type':'application/x-www-form-urlencoded'},
+            body:`url=${encodeURIComponent(url)}`
+        });
+        const data = await res.json();
+        if(data.error){ showError(data.error); hideProgress(); return; }
+
+        videoTitle = data.title || "video";
+        const pt = document.getElementById('preview-title');
+        pt.textContent = data.title || '—';
+        pt.title = data.title || '';
+        document.getElementById('preview-image').src = data.thumbnail || 'https://via.placeholder.com/640x360?text=No+Preview';
+        document.getElementById('preview-duration').textContent = data.duration || '—';
+        showElement('preview');
+
+        currentFormats = (data.formats || []).filter(f => !(f.format_id||'').includes('-drc'));
+        applyFilters();
+        showElement('filters'); showElement('formats'); hideProgress();
+    } catch(e){
+        showError("Ошибка сети при получении информации");
+        hideProgress();
+    }
+});
+
+/* скрытый select синхронизация */
+document.getElementById('filter-type').addEventListener('change', applyFilters);
+</script>
+
+</body>
+</html>
