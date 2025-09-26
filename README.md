@@ -60,7 +60,7 @@ brew install ffmpeg
 ```
 ## Запуск приложения
 ```bash
-python3 add.py
+python3 app.py
 ```
 
 ## После запуска открой в браузере:
