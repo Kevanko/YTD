@@ -1,487 +1,481 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>YTD — Modern Video Downloader</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>YTD — Modern Converter</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <div class="background-stripes" aria-hidden="true"></div>
+  <!-- <div class="background-stripes" aria-hidden="true"></div> -->
 
-    <div id="water-rays-wrap" aria-hidden="true">
-      <canvas id="water-rays"></canvas>
+  <div id="water-rays-wrap" aria-hidden="true"><canvas id="water-rays"></canvas></div>
+  <div id="background-glow" aria-hidden="true"></div>
+  <canvas id="particles" aria-hidden="true"></canvas>
+
+  <div class="container" role="main" aria-live="polite">
+    <header>
+      <h1 id="app-title" title="YTD">YTD — Modern Converter</h1>
+      <p>Скачивай по ссылке или загружай файл — выбирай формат конверсии, ставь обрезку и конвертируй.</p>
+    </header>
+
+    <div class="input-section">
+      <input type="text" id="url" placeholder="https://youtu.be/..." aria-label="URL видео" />
+      <button id="fetch-btn" class="btn-primary">Получить информацию</button>
+
+      <!-- upload control (label directly contains input - no extra programmatic click) -->
+      <label class="btn-upload" title="Загрузить локальный файл">
+        Загрузить файл
+        <input id="fileInput" type="file" accept="video/*,audio/*,image/*" style="display:none" />
+      </label>
     </div>
 
-    <div id="background-glow" aria-hidden="true" class="animate"></div>
-
-    <canvas id="particles" aria-hidden="true"></canvas>
-
-    <div class="container" role="main" aria-live="polite">
-        <header>
-            <h1 id="app-title" title="YTD">YTD — Modern Video Downloader</h1>
-            <p>Скачайте видео или аудио с YouTube и других сайтов</p>
-        </header>
-
-        <div class="input-section">
-            <input type="text" id="url" placeholder="https://youtu.be/..." aria-label="URL видео" />
-            <button id="fetch-btn" class="btn-primary">Получить информацию</button>
-        </div>
-
-        <div id="preview" class="preview hidden" aria-hidden="true">
-            <img id="preview-image" src="" alt="Превью" />
-            <div class="preview-info">
-                <h3 id="preview-title" class="ellipsis" title="">Загрузка...</h3>
-                <p id="preview-duration">—</p>
+    <div id="main-panel" class="panel hidden" aria-hidden="true">
+      <div class="panel-left">
+        <div class="player-wrap" id="playerWrap">
+          <div id="embedWrap" class="embed-wrap">
+            <!-- Preview area: iframe / video / img / audio will be injected here -->
+            <div id="previewArea" class="poster">
+              <img id="preview-image" src="https://via.placeholder.com/640x360?text=Preview" alt="Превью" />
             </div>
+          </div>
         </div>
 
-        <div class="filters hidden" id="filters">
-            <select id="filter-type" aria-label="Фильтр по типу" style="display:none;">
-                <option value="all">Все форматы</option>
-                <option value="audio">Только аудио</option>
-                <option value="video">Только видео</option>
-            </select>
+        <!-- trim-controls now has an id so we can hide it for images -->
+        <div id="trimControls" class="trim-controls">
+          <div class="time-row">
+            <div>Начало: <span id="startDisplay">0:00</span></div>
+            <div>Конец: <span id="endDisplay">0:00</span></div>
+            <div>Длительность: <span id="durationDisplay">0:00</span></div>
+          </div>
 
-            <div id="custom-filter" class="custom-select" role="listbox" tabindex="0" aria-label="Фильтр по типу">
-                <div class="custom-select__current" id="custom-filter-current" aria-hidden="true">Все форматы ▾</div>
-                <div class="custom-select__list hidden" id="custom-filter-list" role="menu" aria-hidden="true">
-                    <div class="option-item" role="option" data-value="all">Все форматы</div>
-                    <div class="option-item" role="option" data-value="audio">Только аудио</div>
-                    <div class="option-item" role="option" data-value="video">Только видео</div>
-                </div>
-            </div>
+          <div class="range-track" id="rangeTrack" aria-hidden="false">
+            <div id="rangeFill" class="range-fill" style="left:0%; right:0%;"></div>
+            <input id="rangeStart" class="range-input start" type="range" min="0" max="100" step="0.1" value="0" />
+            <input id="rangeEnd"   class="range-input end"   type="range" min="0" max="100" step="0.1" value="100" />
+          </div>
 
-            <div id="sort-buttons" class="sort-buttons" role="toolbar" aria-label="Сортировка">
-                <button class="sort-button active" data-sort="default" title="По умолчанию">По умолчанию</button>
-                <button class="sort-button" data-sort="size-desc" title="По размеру (убыв.)">По размеру</button>
-                <button class="sort-button" data-sort="quality" title="По качеству">По качеству</button>
-                <button class="sort-button" data-sort="format" title="По формату">По формату</button>
-            </div>
+          <div class="trim-actions">
+            <label class="small">Шаг (сек): <input id="trimStep" type="number" min="0.1" step="0.1" value="0.5" class="tiny-input" /></label>
+            <button id="resetTrim" class="btn-secondary">Сбросить</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-right">
+        <div class="meta-row">
+          <h3 id="preview-title" class="ellipsis">—</h3>
+          <p id="preview-duration">—</p>
         </div>
 
-        <div id="formats" class="formats hidden" aria-live="polite">
-            <h3>📁 Доступные форматы:</h3>
-            <div id="formats-list" class="formats-grid"></div>
+        <div class="field">
+          <label>Формат конверсии (что вы хотите получить):</label>
+          <select id="formatSelect" class="full">
+            <option value="">Сначала нажмите «Получить информацию» или загрузите файл</option>
+          </select>
         </div>
 
-        <div id="progress" class="card hidden" aria-hidden="true">
-            <div class="spinner" role="status" aria-hidden="true"></div>
-            <p id="status-text">Подготовка...</p>
+        <div class="field small">
+          <label>Оценочный размер:</label>
+          <div id="formatSize">—</div>
         </div>
 
-        <div id="error" class="card error hidden" role="alert"></div>
+        <div class="field">
+          <label>Разрешение (уменьшение для меньшего размера):</label>
+          <select id="resolutionSelect" class="full">
+            <option value="original">Оригинал</option>
+            <option value="2160">2160p (4K)</option>
+            <option value="1440">1440p</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Имя файла (опционально):</label>
+          <input id="customTitle" class="full" type="text" placeholder="Оставить или ввести своё имя" />
+        </div>
+
+        <div class="actions">
+          <button id="downloadBtn" class="btn-download">Скачать / Конвертировать</button>
+          <div id="statusSmall" class="status-small hidden">...</div>
+        </div>
+
+        <div id="formatsHint" class="hint small">Формат выбирается один — это целевой контейнер/формат. Исходный поток выбирается автоматически.</div>
+      </div>
     </div>
+
+    <div id="progress" class="card hidden" aria-hidden="true">
+      <div class="spinner" role="status" aria-hidden="true"></div>
+      <p id="status-text">Подготовка...</p>
+    </div>
+
+    <div id="error" class="card error hidden" role="alert"></div>
+  </div>
 
 <script>
-/* particles (фон) - точки */
-const pcanvas = document.getElementById('particles');
-const pctx = pcanvas.getContext('2d');
-function resizeParticles(){ pcanvas.width = window.innerWidth; pcanvas.height = window.innerHeight; }
-resizeParticles(); window.addEventListener('resize', ()=>{ resizeParticles(); resizeRays(); });
-const particles = [], pcount = 60;
-class P{ constructor(){ this.x=Math.random()*pcanvas.width; this.y=Math.random()*pcanvas.height; this.s=Math.random()*2+0.5; this.vx=(Math.random()*0.6-0.3); this.vy=(Math.random()*0.6-0.3); this.c=`rgba(120,130,255,${Math.random()*0.24+0.06})`; } update(){ this.x+=this.vx; this.y+=this.vy; if(this.x<0||this.x>pcanvas.width) this.vx*=-1; if(this.y<0||this.y>pcanvas.height) this.vy*=-1 } draw(){ pctx.fillStyle=this.c; pctx.beginPath(); pctx.arc(this.x,this.y,this.s,0,Math.PI*2); pctx.fill(); } }
-for(let i=0;i<pcount;i++) particles.push(new P());
-(function panim(){ pctx.clearRect(0,0,pcanvas.width,pcanvas.height); pctx.fillStyle='rgba(0,0,0,0.02)'; pctx.fillRect(0,0,pcanvas.width,pcanvas.height); for(const p of particles){ p.update(); p.draw(); } requestAnimationFrame(panim); })();
-
-/* water rays (canvas) - подводное переливание */
-const raysCanvas = document.getElementById('water-rays');
-const rctx = raysCanvas.getContext('2d');
-let raysW=0, raysH=0;
-function resizeRays(){ raysCanvas.width = raysW = window.innerWidth; raysCanvas.height = raysH = Math.max(window.innerHeight * 0.36, 220); }
-resizeRays();
-
-let t0 = 0;
-function drawRays(ts){
-    t0 = ts/1000;
-    rctx.clearRect(0,0,raysW,raysH);
-
-    const g = rctx.createLinearGradient(0,0,0,raysH);
-    g.addColorStop(0, 'rgba(12,12,20,0.85)');
-    g.addColorStop(0.6, 'rgba(12,12,20,0.0)');
-    rctx.fillStyle = g;
-    rctx.fillRect(0,0,raysW,raysH);
-
-    rctx.globalCompositeOperation = 'lighter';
-    for(let layer=0; layer<3; layer++){
-        const hue = 230 + layer*8;
-        const alpha = 0.035 + layer*0.02;
-        rctx.fillStyle = `rgba(${hue}, ${hue}, 255, ${alpha})`;
-        rctx.beginPath();
-        const amp = 18 + layer*12;
-        const freq = 0.0022 + layer*0.0012;
-        const speed = 0.8 + layer*0.4;
-        rctx.moveTo(0, raysH);
-        for(let x=0;x<=raysW;x+=8){
-            const y = raysH*0.6 + Math.sin((x*freq) + t0*speed + layer)*amp*(1+Math.sin(x*0.001+layer));
-            rctx.lineTo(x, y);
+/* Backgrounds (particles + water rays) */
+(function setupBackgrounds(){
+  const pcanvas = document.getElementById('particles');
+  if(pcanvas){
+    const pctx = pcanvas.getContext && pcanvas.getContext('2d');
+    function resizeParticles(){ if(!pctx) return; pcanvas.width = innerWidth; pcanvas.height = innerHeight; }
+    resizeParticles(); addEventListener('resize', resizeParticles);
+    if(pctx){
+      const particles = Array.from({length:40}).map(()=>({
+        x:Math.random()*pcanvas.width, y:Math.random()*pcanvas.height,
+        s:Math.random()*2+0.3, vx:(Math.random()*0.4-0.2), vy:(Math.random()*0.4-0.2),
+        c:`rgba(120,130,255,${Math.random()*0.12+0.03})`
+      }));
+      (function loop(){ pctx.clearRect(0,0,pcanvas.width,pcanvas.height); for(const p of particles){ p.x+=p.vx; p.y+=p.vy; if(p.x<0||p.x>pcanvas.width) p.vx*=-1; if(p.y<0||p.y>pcanvas.height) p.vy*=-1; pctx.fillStyle=p.c; pctx.beginPath(); pctx.arc(p.x,p.y,p.s,0,Math.PI*2); pctx.fill(); } requestAnimationFrame(loop); })();
+    }
+  }
+  const raysCanvas = document.getElementById('water-rays');
+  if(raysCanvas){
+    const rctx = raysCanvas.getContext('2d');
+    function resizeRays(){ raysCanvas.width = window.innerWidth; raysCanvas.height = Math.max(window.innerHeight * 0.36, 180); }
+    resizeRays(); addEventListener('resize', resizeRays);
+    let t0 = 0;
+    (function draw(ts){
+      t0 = ts/1000; rctx.clearRect(0,0,raysCanvas.width,raysCanvas.height);
+      const g = rctx.createLinearGradient(0,0,0,raysCanvas.height);
+      g.addColorStop(0,'rgba(12,12,20,0.85)'); g.addColorStop(0.6,'rgba(12,12,20,0.0)');
+      rctx.fillStyle = g; rctx.fillRect(0,0,raysCanvas.width,raysCanvas.height);
+      rctx.globalCompositeOperation = 'lighter';
+      for(let layer=0; layer<3; layer++){
+        const hue = 200 + layer*10; const alpha = 0.03 + layer*0.02;
+        rctx.fillStyle = `rgba(${hue}, ${hue}, 255, ${alpha})`; rctx.beginPath();
+        const amp = 16 + layer*10, freq = 0.002 + layer*0.0012, speed = 0.7 + layer*0.3;
+        rctx.moveTo(0, raysCanvas.height);
+        for(let x=0;x<=raysCanvas.width;x+=8){
+          const y = raysCanvas.height*0.6 + Math.sin((x*freq)+t0*speed+layer)*amp*(1+Math.sin(x*0.001+layer));
+          rctx.lineTo(x, y);
         }
-        rctx.lineTo(raysW, raysH);
-        rctx.closePath();
-        rctx.fill();
-    }
-    rctx.globalCompositeOperation = 'source-over';
-
-    rctx.globalAlpha = 0.06;
-    for(let i=0;i<60;i++){
-        const x = Math.random()*raysW;
-        const y = Math.random()*raysH;
-        const s = Math.random()*3;
-        rctx.fillStyle = `rgba(200,200,255,0.06)`;
-        rctx.fillRect(x,y,s,s);
-    }
-    rctx.globalAlpha = 1.0;
-
-    requestAnimationFrame(drawRays);
-}
-requestAnimationFrame(drawRays);
-
-/* основной код приложения */
-const baseUrl = window.location.origin;
-let currentFormats = [], videoTitle = "video", sortMode = "default";
-
-function showElement(id){ document.getElementById(id).classList.remove('hidden'); }
-function hideElement(id){ document.getElementById(id).classList.add('hidden'); }
-function showError(msg){ const el = document.getElementById('error'); el.textContent = msg; showElement('error'); setTimeout(()=>hideElement('error'),6000); }
-function showProgress(text){ document.getElementById('status-text').textContent = text; showElement('progress'); }
-function hideProgress(){ hideElement('progress'); }
-
-function parseRes(res){ if(!res||res==='—'||res==='Аудио') return 0; const m = res.match(/(\d+)[x×](\d+)/); return m?parseInt(m[2]):0; }
-function humanSize(bytes){ if(!bytes) return '—'; const units=['б','КБ','МБ','ГБ']; let i=0, val=bytes; while(val>1024&&i<units.length-1){ val/=1024; i++ } return val.toFixed(1)+' '+units[i]; }
-
-function applyFilters(){
-    const type = document.getElementById('filter-type').value;
-    let filtered = [...currentFormats];
-
-    if(type === 'audio') filtered = filtered.filter(f => f.acodec !== 'none' && f.vcodec === 'none');
-    else if(type === 'video') filtered = filtered.filter(f => f.vcodec !== 'none');
-
-    if(sortMode === 'size-asc') filtered.sort((a,b)=>(a.filesize||0)-(b.filesize||0));
-    else if(sortMode === 'size-desc') filtered.sort((a,b)=>(b.filesize||0)-(a.filesize||0));
-    else if(sortMode === 'quality'){
-        filtered.sort((a,b)=>{
-            const aAudio = a.acodec!=='none' && a.vcodec==='none';
-            const bAudio = b.acodec!=='none' && b.vcodec==='none';
-            if(aAudio && !bAudio) return -1;
-            if(!aAudio && bAudio) return 1;
-            if(aAudio) return (b.tbr||0)-(a.tbr||0);
-            return parseRes(b.resolution)-parseRes(a.resolution);
-        });
-    } else if(sortMode === 'format') filtered.sort((a,b)=> (a.ext||'').localeCompare(b.ext||''));
-    renderFormats(filtered);
-}
-
-/* переключатель сортировки (текстовые кнопки) */
-document.querySelectorAll('.sort-button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-        document.querySelectorAll('.sort-button').forEach(x=>x.classList.remove('active'));
-        btn.classList.add('active');
-        sortMode = btn.dataset.sort;
-        applyFilters();
-    });
-});
-
-/* кастомный селект (фильтр) — улучшено: закрывается после выбора */
-(function setupCustomSelect(){
-    const real = document.getElementById('filter-type');
-    const selectWrap = document.getElementById('custom-filter');
-    const current = document.getElementById('custom-filter-current');
-    const list = document.getElementById('custom-filter-list');
-    const items = list.querySelectorAll('.option-item');
-
-    function setValue(val,text){
-        real.value = val;
-        current.textContent = text + ' ▾';
-        applyFilters();
-    }
-
-    items.forEach(it=>{
-        it.addEventListener('click', (e)=>{
-            e.stopPropagation();
-            setValue(it.dataset.value, it.textContent);
-            list.classList.add('hidden');
-        });
-    });
-
-    selectWrap.addEventListener('click', (e)=>{
-        e.stopPropagation();
-        list.classList.toggle('hidden');
-    });
-
-    // close on outside click
-    document.addEventListener('click', (e)=>{
-        if(!selectWrap.contains(e.target)) list.classList.add('hidden');
-    });
-
-    // keyboard support
-    selectWrap.addEventListener('keydown', (e)=>{
-        if(e.key === 'Enter' || e.key === ' ') {
-            list.classList.toggle('hidden'); e.preventDefault();
-        } else if(e.key === 'Escape') {
-            list.classList.add('hidden');
-        }
-    });
+        rctx.lineTo(raysCanvas.width, raysCanvas.height); rctx.closePath(); rctx.fill();
+      }
+      rctx.globalCompositeOperation = 'source-over';
+      rctx.globalAlpha = 0.06;
+      for(let i=0;i<60;i++){ const x=Math.random()*raysCanvas.width, y=Math.random()*raysCanvas.height, s=Math.random()*3; rctx.fillStyle='rgba(200,200,255,0.06)'; rctx.fillRect(x,y,s,s); }
+      rctx.globalAlpha = 1; requestAnimationFrame(draw);
+    })(0);
+  }
 })();
 
-function friendlyCodec(codec) {
-    if (!codec || codec === 'none') return null;
-    codec = codec.toLowerCase();
-    if (codec.startsWith('mp4a')) return 'aac';
-    if (codec.includes('opus')) return 'opus';
-    if (codec.includes('vorbis')) return 'vorbis';
-    if (codec.includes('mp3')) return 'mp3';
-    if (codec.includes('vp9')) return 'vp9';
-    if (codec.includes('av01')) return 'av1';
-    if (codec.includes('h264') || codec.includes('avc')) return 'h264';
-    return codec;
-}
+/* ---- App logic ---- */
+const baseUrl = window.location.origin;
+let currentFormats = [];
+let videoTitle = "video";
+let durationSec = 0;
+let uploadedFileInfo = null;
 
-/* рендер карточек форматов: добавлена audio-toggle (правый верх),
-   и download-link НЕ показывается — скачивание стартует автоматически */
-function renderFormats(formats){
-    const container = document.getElementById('formats-list');
-    container.innerHTML = '';
-    if(!formats.length){ container.innerHTML = '<div class="format-card">Форматы не найдены</div>'; return; }
+/* target formats lists */
+const TARGET_VIDEO_AUDIO = [
+  {val:'mp4', label:'MP4 (видео)'},
+  {val:'webm', label:'WebM (видео)'},
+  {val:'mkv', label:'MKV (видео)'},
+  {val:'mov', label:'MOV (видео)'},
+  {val:'avi', label:'AVI (видео)'},
+  {val:'gif', label:'GIF (анимация)'},
+  {val:'mp3', label:'MP3 (аудио)'},
+  {val:'m4a', label:'M4A (аудио)'},
+  {val:'wav', label:'WAV (аудио)'},
+  {val:'ogg', label:'OGG (аудио)'},
+  {val:'opus', label:'Opus (аудио)'}
+];
+const TARGET_IMAGE = [
+  {val:'png', label:'PNG (изображение)'},
+  {val:'jpeg', label:'JPEG (изображение)'},
+  {val:'webp', label:'WebP (изображение)'},
+  {val:'gif', label:'GIF (анимация)'}
+];
 
-    formats.forEach((f)=>{
-        const isAudio = f.acodec!=='none' && f.vcodec==='none';
-        const ext = (f.ext||'').toUpperCase();
-        const size = humanSize(f.filesize);
-        const resolution = f.resolution && f.resolution!=='—' ? f.resolution : null;
+function show(id){ document.getElementById(id).classList.remove('hidden'); }
+function hide(id){ document.getElementById(id).classList.add('hidden'); }
+function showError(msg){ const el=document.getElementById('error'); el.textContent=msg; show('error'); setTimeout(()=>hide('error'),6000); }
+function showProgress(t){ document.getElementById('status-text').textContent=t; show('progress'); }
+function hideProgress(){ hide('progress'); }
 
-        const meta = [ ext, resolution ? resolution : null, isAudio ? 'Аудио' : 'Видео' ].filter(Boolean).join(' · ');
-
-        const card = document.createElement('div');
-        card.className = 'format-card';
-        card.dataset.includeAudio = 'false';
-        card.innerHTML = `
-            <div class="format-badge ${isAudio ? 'badge-audio' : 'badge-video'}">${isAudio ? 'AUDIO' : 'VIDEO'}</div>
-
-            <button class="audio-toggle" title="Включить добавление аудио при скачивании" aria-pressed="false" type="button">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
-                  <path d="M5 9v6h4l5 4V5L9 9H5z"></path>
-                </svg>
-            </button>
-
-            <div class="format-info">
-                <div class="format-meta small">${meta}</div>
-                <div class="format-size small">${size}</div>
-            </div>
-
-            <div class="format-actions">
-                <button class="btn-download">Скачать</button>
-            </div>
-
-            <div class="download-status hidden">
-                <div class="spinner-small" aria-hidden="true"></div>
-                <span class="status-text">Подготовка...</span>
-                <div class="download-area" style="display:inline-flex;align-items:center;gap:8px;"></div>
-            </div>
-        `;
-
-        container.appendChild(card);
-
-        // audio toggle logic
-            const toggle = card.querySelector('.audio-toggle');
-            toggle.addEventListener('click', (e)=>{
-                e.stopPropagation();
-                const active = toggle.classList.toggle('on');
-                toggle.classList.remove('failed');
-                toggle.setAttribute('aria-pressed', active ? 'true' : 'false');
-                card.dataset.includeAudio = active ? 'true' : 'false';
-            });
-
-
-        // download button
-        const btn = card.querySelector('.btn-download');
-        btn.addEventListener('click', ()=>{
-            startDownloadForCard(card, f.format_id);
-        });
-    });
-
-    container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
-}
-
-/* start download: include_audio sent based on card.dataset.includeAudio.
-   Do NOT create visible download link — when ready, auto-trigger browser download. */
-async function startDownloadForCard(card, formatId){
-    const statusEl = card.querySelector('.download-status');
-    const statusText = card.querySelector('.status-text');
-    const btn = card.querySelector('.btn-download');
-    const toggle = card.querySelector('.audio-toggle');
-    statusEl.classList.remove('hidden');
-    btn.disabled = true;
-    statusText.textContent = "Отправка задания...";
-
-    const includeAudio = card.dataset.includeAudio === 'true';
-    if(includeAudio){
-        toggle.classList.add('on');
-        toggle.classList.add('processing');
-    } else {
-        toggle.classList.remove('processing');
-        toggle.classList.remove('failed');
-        toggle.classList.remove('on');
-        toggle.setAttribute('aria-pressed', 'false');
-    }
-
-    try {
-        const url = document.getElementById('url').value.trim();
-        const body = `url=${encodeURIComponent(url)}&format_id=${encodeURIComponent(formatId)}&title=${encodeURIComponent(videoTitle)}&include_audio=${includeAudio}`;
-        const res = await fetch(`${baseUrl}/start`, {
-            method:'POST',
-            headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body
-        });
-        const data = await res.json();
-        if(data.error){
-            showError(data.error);
-            statusText.textContent='Ошибка';
-            setTimeout(()=>{ statusEl.classList.add('hidden'); btn.disabled=false; toggle.classList.remove('processing'); },2500);
-            return;
-        }
-        pollStatusForCard(data.task_id, card);
-    } catch(e){
-        showError("Ошибка сети при отправке задания");
-        statusText.textContent='Сеть';
-        setTimeout(()=>{ statusEl.classList.add('hidden'); btn.disabled=false; toggle.classList.remove('processing'); },2500);
-    }
-}
-
-/* poll status and auto-download when ready (no visible link). */
-function pollStatusForCard(taskId, card){
-    const statusText = card.querySelector('.status-text');
-    const toggle = card.querySelector('.audio-toggle');
-    const btn = card.querySelector('.btn-download');
-
-    const interval = setInterval(async ()=>{
-        try {
-            const res = await fetch(`${baseUrl}/status/${taskId}`);
-            const task = await res.json();
-            if(task.message) statusText.textContent = Array.isArray(task.message) ? task.message.join(' ') : task.message;
-
-            const audioState = task.audio_state || 'none';
-
-            if(audioState === 'pending'){
-                toggle.classList.add('processing');
-                toggle.classList.remove('failed');
-                toggle.classList.add('on');
-            } else if(audioState === 'ok'){
-                toggle.classList.remove('processing');
-                toggle.classList.remove('failed');
-                toggle.classList.add('on');
-                toggle.setAttribute('aria-pressed','true');
-            } else if(audioState === 'failed'){
-                toggle.classList.remove('processing');
-                toggle.classList.remove('on');
-                toggle.classList.add('failed');
-                toggle.setAttribute('aria-pressed','false');
-            } else {
-                toggle.classList.remove('processing');
-            }
-
-            if(task.status === 'done' || task.status === 'partial'){
-                clearInterval(interval);
-                const sp = card.querySelector('.spinner-small'); if(sp) sp.style.display='none';
-                // small UX: show brief status then trigger download
-                statusText.textContent = "Готово — начинаем загрузку...";
-                if(task.file_path){
-                    const fileName = task.file_path;
-                    // auto-download: create hidden link, click it, remove it
-                    const href = `${baseUrl}/download-file/${encodeURIComponent(fileName)}`;
-                    const a = document.createElement('a');
-                    a.href = href;
-                    a.download = fileName;
-                    a.style.display = 'none';
-                    // for some browsers set rel and target
-                    a.rel = 'noopener';
-                    document.body.appendChild(a);
-
-                    // small delay to let the UI update (0-300ms)
-                    setTimeout(()=> {
-                        try {
-                            a.click();
-                            statusText.textContent = "Загрузка запущена";
-                        } catch(e) {
-                            // fallback: reveal manual link if auto-click blocked
-                            showError("Автозагрузка заблокирована — появится ссылка для скачивания.");
-                            const downloadArea = card.querySelector('.download-area');
-                            downloadArea.innerHTML = '';
-                            const link = document.createElement('a');
-                            link.href = href;
-                            link.className = 'download-link';
-                            link.textContent = 'Скачать файл';
-                            link.setAttribute('download', fileName);
-                            link.rel = 'noopener';
-                            downloadArea.appendChild(link);
-                        } finally {
-                            try { document.body.removeChild(a); } catch(e){}
-                            btn.disabled = false;
-                            // hide status after short time
-                            setTimeout(()=> {
-                                const statusEl = card.querySelector('.download-status');
-                                if(statusEl) statusEl.classList.add('hidden');
-                            }, 1800);
-                        }
-                    }, 160);
-                } else {
-                    btn.disabled = false;
-                    setTimeout(()=> {
-                        const statusEl = card.querySelector('.download-status');
-                        if(statusEl) statusEl.classList.add('hidden');
-                    }, 1200);
-                }
-            } else if(task.status === 'failed'){
-                clearInterval(interval);
-                statusText.textContent='Ошибка';
-                toggle.classList.remove('processing');
-                toggle.classList.add('failed');
-                setTimeout(()=>{ card.querySelector('.download-status').classList.add('hidden'); btn.disabled=false; },2500);
-            }
-        } catch(e){
-            clearInterval(interval);
-            // network error — leave UI stable
-            btn.disabled = false;
-            toggle.classList.remove('processing');
-        }
-    }, 2000);
-}
-
-/* кнопка "Получить информацию" */
+/* FETCH info via yt-dlp */
 document.getElementById('fetch-btn').addEventListener('click', async ()=>{
-    const url = document.getElementById('url').value.trim();
-    if(!url) return showError("Введите URL");
-    showProgress("Получение информации...");
-    hideElement('preview'); hideElement('formats'); hideElement('filters'); hideElement('error');
+  uploadedFileInfo = null;
+  const url = document.getElementById('url').value.trim();
+  if(!url) return showError('Введите URL');
+  showProgress('Получаем информацию...');
+  hide('main-panel');
+  try{
+    const res = await fetch(`${baseUrl}/info`, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:`url=${encodeURIComponent(url)}`
+    });
+    const data = await res.json();
+    if(data.error){ hideProgress(); return showError(data.error); }
+    videoTitle = data.title || 'video';
+    durationSec = data.duration_seconds || 0;
+    document.getElementById('preview-title').textContent = videoTitle;
+    document.getElementById('preview-duration').textContent = data.duration || '—';
+    document.getElementById('durationDisplay').textContent = formatTime(durationSec);
 
-    try {
-        const res = await fetch(`${baseUrl}/info`, {
-            method:'POST',
-            headers:{'Content-Type':'application/x-www-form-urlencoded'},
-            body:`url=${encodeURIComponent(url)}`
-        });
-        const data = await res.json();
-        if(data.error){ showError(data.error); hideProgress(); return; }
+    currentFormats = (data.formats||[]).filter(f=>!(f.format_id||'').includes('-drc'));
+    populateTargetFormats('video');
+    updateFormatSizeDisplay();
 
-        videoTitle = data.title || "video";
-        const pt = document.getElementById('preview-title');
-        pt.textContent = data.title || '—';
-        pt.title = data.title || '';
-        document.getElementById('preview-image').src = data.thumbnail || 'https://via.placeholder.com/640x360?text=No+Preview';
-        document.getElementById('preview-duration').textContent = data.duration || '—';
-        showElement('preview');
-
-        currentFormats = (data.formats || []).filter(f => !(f.format_id||'').includes('-drc'));
-        applyFilters();
-        showElement('filters'); showElement('formats'); hideProgress();
-    } catch(e){
-        showError("Ошибка сети при получении информации");
-        hideProgress();
+    const embedWrap = document.getElementById('embedWrap');
+    embedWrap.innerHTML = '';
+    const urlLower = url.toLowerCase();
+    if(urlLower.includes('youtube')||urlLower.includes('youtu.be')){
+      let videoId=null;
+      try{ const u=new URL(url); if(u.hostname.includes('youtu.be')) videoId=u.pathname.slice(1); else videoId=u.searchParams.get('v'); }catch(e){}
+      if(!videoId && data.webpage_url && data.webpage_url.includes('youtu')){
+        const m=(data.webpage_url||'').match(/(?:v=|youtu\.be\/)([A-Za-z0-9_-]{6,})/); if(m) videoId=m[1];
+      }
+      if(videoId){
+        const iframe = document.createElement('iframe');
+        iframe.src=`https://www.youtube.com/embed/${videoId}`;
+        iframe.allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture";
+        iframe.loading="lazy"; iframe.className='embed-iframe';
+        embedWrap.appendChild(iframe);
+      } else {
+        showThumbnail(embedWrap, data.thumbnail);
+      }
+    } else {
+      showThumbnail(embedWrap, data.thumbnail);
     }
+
+    // ensure trim controls visible for video
+    document.getElementById('trimControls').classList.remove('hidden');
+    document.getElementById('resolutionSelect').disabled = false;
+
+    show('main-panel'); hideProgress();
+  }catch(e){ hideProgress(); showError('Ошибка сети при получении информации'); }
 });
 
-/* скрытый select синхронизация */
-document.getElementById('filter-type').addEventListener('change', applyFilters);
-</script>
+/* UPLOAD local file (label click triggers file input; no extra programmatic click) */
+const fileInput = document.getElementById('fileInput');
+fileInput.addEventListener('change', async ()=>{
+  const f = fileInput.files && fileInput.files[0];
+  if(!f) return;
+  if(f.size > 500 * 1024 * 1024){ showError('Файл слишком большой (лимит 500MB)'); return; }
+  showProgress('Загрузка файла на сервер...');
+  const fd = new FormData();
+  fd.append('file', f);
+  try{
+    const res = await fetch(`${baseUrl}/upload`, { method:'POST', body: fd });
+    const data = await res.json();
+    if(data.error){ hideProgress(); return showError(data.error); }
+    uploadedFileInfo = data; // {filename, is_image, is_video, duration, size, mime}
+    videoTitle = f.name;
+    durationSec = data.duration || 0;
+    document.getElementById('preview-title').textContent = f.name;
+    document.getElementById('preview-duration').textContent = data.duration ? formatTime(data.duration) : (data.is_image ? 'Изображение' : '—');
+    document.getElementById('durationDisplay').textContent = data.duration ? formatTime(data.duration) : '0:00';
 
+    const embedWrap = document.getElementById('embedWrap');
+    embedWrap.innerHTML = '';
+    const url = `${baseUrl}/uploads/${encodeURIComponent(data.filename)}`;
+
+    if(data.is_video){
+      const v = document.createElement('video'); v.className='embed-iframe'; v.controls=true; v.src = url; v.preload='metadata';
+      embedWrap.appendChild(v);
+      // show trim controls
+      document.getElementById('trimControls').classList.remove('hidden');
+      document.getElementById('resolutionSelect').disabled = false;
+      populateTargetFormats('video');
+    } else if(data.is_image){
+      const img = document.createElement('img'); img.src = url; img.alt='Изображение'; img.className='preview-img';
+      embedWrap.appendChild(img);
+      // hide trim controls for image
+      document.getElementById('trimControls').classList.add('hidden');
+      // resolution irrelevant for images (disable)
+      document.getElementById('resolutionSelect').disabled = true;
+      populateTargetFormats('image');
+    } else {
+      const a = document.createElement('audio'); a.controls=true; a.src = url; embedWrap.appendChild(a);
+      document.getElementById('trimControls').classList.remove('hidden');
+      document.getElementById('resolutionSelect').disabled = false;
+      populateTargetFormats('video');
+    }
+
+    updateFormatSizeDisplay();
+    show('main-panel'); hideProgress();
+  }catch(e){ hideProgress(); showError('Ошибка загрузки файла'); }
+});
+
+/* Helper functions */
+function showThumbnail(container, url){
+  container.innerHTML = '';
+  const div = document.createElement('div'); div.className='poster';
+  const img = document.createElement('img'); img.src = url || 'https://via.placeholder.com/640x360?text=No+Preview'; img.alt='Preview';
+  div.appendChild(img); container.appendChild(div);
+}
+function populateTargetFormats(kind){
+  const sel = document.getElementById('formatSelect');
+  sel.innerHTML = '';
+  const list = kind === 'image' ? TARGET_IMAGE : TARGET_VIDEO_AUDIO;
+  list.forEach(t => { const o = document.createElement('option'); o.value = t.val; o.textContent = t.label; sel.appendChild(o); });
+  sel.selectedIndex = 0;
+}
+
+/* estimate size display simple */
+function updateFormatSizeDisplay(){
+  const sel = document.getElementById('formatSelect');
+  const resolution = document.getElementById('resolutionSelect').value;
+  const ext = sel.value;
+  if(!ext){ document.getElementById('formatSize').textContent = '—'; return; }
+  if(uploadedFileInfo){
+    document.getElementById('formatSize').textContent = humanSize(uploadedFileInfo.size);
+    return;
+  }
+  const est = estimateSizeForTarget(ext, resolution);
+  document.getElementById('formatSize').textContent = est ? humanSize(Number(est)) : '—';
+}
+document.getElementById('formatSelect').addEventListener('change', updateFormatSizeDisplay);
+document.getElementById('resolutionSelect').addEventListener('change', updateFormatSizeDisplay);
+
+function estimateSizeForTarget(targetExt, resolutionHint){
+  if(!currentFormats || currentFormats.length===0) return null;
+  const audioTargets = ['mp3','m4a','wav','ogg','opus'];
+  if(audioTargets.includes(targetExt)){
+    const aud = currentFormats.filter(f=> (f.acodec && f.acodec!=='none') && (f.vcodec==='none' || f.vcodec==='none'));
+    aud.sort((a,b)=>(b.filesize||0)-(a.filesize||0));
+    if(aud.length && aud[0].filesize) return aud[0].filesize;
+    return null;
+  } else {
+    const candidates = currentFormats.filter(f=> (f.vcodec && f.vcodec!=='none'));
+    if(!candidates.length) return null;
+    if(resolutionHint && resolutionHint!=='original'){
+      const h = parseInt(resolutionHint);
+      let exact = candidates.filter(f=> (f.ext === targetExt) && (typeof f.resolution === 'string') && f.resolution.includes('x') && parseInt(f.resolution.split('x')[1]) === h);
+      if(exact.length && exact[0].filesize) return exact[0].filesize;
+      let sameExt = candidates.filter(f=> f.ext === targetExt && f.filesize);
+      if(sameExt.length){
+        sameExt.sort((a,b)=>{
+          const ra = (a.resolution && a.resolution.includes('x'))? parseInt(a.resolution.split('x')[1]) : 0;
+          const rb = (b.resolution && b.resolution.includes('x'))? parseInt(b.resolution.split('x')[1]) : 0;
+          return Math.abs((ra||0)-h) - Math.abs((rb||0)-h);
+        });
+        if(sameExt[0] && sameExt[0].filesize) return sameExt[0].filesize;
+      }
+    }
+    const bestV = candidates.sort((a,b)=> (parseInt((b.resolution||'0').split('x').pop()||0) - parseInt((a.resolution||'0').split('x').pop()||0)))[0];
+    const bestA = currentFormats.filter(f=> f.acodec && f.acodec!=='none' && (f.vcodec==='none'))[0];
+    const vs = bestV && bestV.filesize ? Number(bestV.filesize) : 0;
+    const as = bestA && bestA.filesize ? Number(bestA.filesize) : 0;
+    return (vs + as) || null;
+  }
+}
+
+/* ---------- Trim slider logic (both thumbs draggable) ---------- */
+const startRange = document.getElementById('rangeStart');
+const endRange = document.getElementById('rangeEnd');
+const rangeFill = document.getElementById('rangeFill');
+const startDisplay = document.getElementById('startDisplay');
+const endDisplay = document.getElementById('endDisplay');
+const stepInput = document.getElementById('trimStep');
+
+// default z-index so both inputs clickable
+startRange.style.zIndex = 3;
+endRange.style.zIndex = 3;
+rangeFill.style.pointerEvents = 'none';
+
+function percentToSec(p){ return (p/100) * durationSec; }
+function formatTime(s){ if(!s && s!==0) return '0:00'; s=Number(s)||0; const m=Math.floor(s/60), sec=Math.floor(s%60); return `${m}:${sec.toString().padStart(2,'0')}`; }
+function updateRangeUI(){
+  let s = parseFloat(startRange.value), e = parseFloat(endRange.value);
+  if(s > e){ const tmp = s; s = e; e = tmp; }
+  rangeFill.style.left = s + '%';
+  rangeFill.style.right = (100 - e) + '%';
+  startDisplay.textContent = formatTime(percentToSec(s));
+  endDisplay.textContent = formatTime(percentToSec(e));
+}
+
+// pointerdown/up: bring active thumb to top (higher z-index) so it can be dragged even if overlapping
+[startRange, endRange].forEach((input)=>{
+  input.style.touchAction = 'none';
+  input.addEventListener('pointerdown', (ev)=>{
+    // active thumb to high z-index
+    startRange.style.zIndex = (input === startRange) ? 6 : 4;
+    endRange.style.zIndex   = (input === endRange)   ? 6 : 4;
+  });
+  input.addEventListener('input', (e)=>{
+    const step = parseFloat(stepInput.value) || 0.1;
+    const val = Math.max(0, Math.min(100, Number(e.target.value)));
+    e.target.value = Math.round(val/step)*step;
+    updateRangeUI();
+  });
+});
+document.addEventListener('pointerup', ()=>{ startRange.style.zIndex=3; endRange.style.zIndex=3; });
+document.getElementById('resetTrim').addEventListener('click', ()=>{ startRange.value=0; endRange.value=100; updateRangeUI(); });
+
+/* ---------- Download / Start task ---------- */
+document.getElementById('downloadBtn').addEventListener('click', async ()=>{
+  const sel = document.getElementById('formatSelect');
+  if(!sel || !sel.value) return showError('Выберите целевой формат');
+  const target = sel.value;
+  const resolution = document.getElementById('resolutionSelect').value || 'original';
+  const title = (document.getElementById('customTitle').value || videoTitle).trim();
+
+  const sPct = parseFloat(startRange.value) || 0;
+  const ePct = parseFloat(endRange.value) || 100;
+  const start = percentToSec(Math.min(sPct, ePct));
+  const end = percentToSec(Math.max(sPct, ePct));
+
+  const body = new URLSearchParams();
+  const urlVal = document.getElementById('url').value.trim();
+  if(uploadedFileInfo){
+    body.set('src_file', uploadedFileInfo.filename);
+  } else if(urlVal){
+    body.set('url', urlVal);
+  } else {
+    return showError('Нету URL и не загружен файл');
+  }
+  body.set('target_format', target);
+  body.set('title', title);
+  body.set('start', String(start.toFixed(3)));
+  body.set('end', String(end.toFixed(3)));
+  body.set('resolution', resolution);
+
+  try{
+    showProgress('Запускаем задачу на сервере...');
+    const res = await fetch(`${baseUrl}/start`, { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body: body.toString() });
+    const data = await res.json();
+    if(data.error){ hideProgress(); return showError(data.error); }
+    const taskId = data.task_id;
+    hideProgress();
+    pollStatus(taskId);
+    show('progress');
+    document.getElementById('status-text').textContent = 'Задача создана — ожидаем завершения...';
+  }catch(e){ hideProgress(); showError('Ошибка при запуске задачи'); }
+});
+
+function pollStatus(taskId){
+  const interval = setInterval(async ()=>{
+    try{
+      const res = await fetch(`${baseUrl}/status/${taskId}`);
+      const data = await res.json();
+      if(data.error){ clearInterval(interval); showError('Задача не найдена'); hide('progress'); return; }
+      document.getElementById('status-text').textContent = Array.isArray(data.message)? data.message.join(' ') : (data.message||'');
+      if(data.status === 'done' || data.status === 'partial'){
+        clearInterval(interval);
+        document.getElementById('status-text').textContent = 'Готово — начинается скачивание...';
+        if(data.file_path){
+          const href = `${baseUrl}/download-file/${encodeURIComponent(data.file_path)}`;
+          const a = document.createElement('a'); a.href = href; a.download = data.file_path; a.style.display='none'; document.body.appendChild(a);
+          setTimeout(()=>{ try{ a.click(); }catch(e){ showError('Автозагрузка заблокирована — появится ссылка.'); const link=document.createElement('a'); link.href=href; link.textContent='Скачать файл'; link.className='download-link'; document.querySelector('.actions').appendChild(link); } finally{ try{ document.body.removeChild(a);}catch(e){} hide('progress'); } }, 160);
+        } else hide('progress');
+      } else if(data.status === 'failed'){
+        clearInterval(interval); document.getElementById('status-text').textContent='Ошибка'; hide('progress'); showError('Задача завершилась ошибкой');
+      }
+    }catch(e){ clearInterval(interval); hide('progress'); showError('Сетевая ошибка при отслеживании задачи'); }
+  },2000);
+}
+
+/* Helpers */
+function humanSize(bytes){ if(!bytes) return '—'; const units=['Б','КБ','МБ','ГБ']; let i=0, val=Number(bytes); while(val>1024 && i<units.length-1){ val/=1024; i++; } return val.toFixed(1)+' '+units[i]; }
+function formatTimeShort(s){ return formatTime(s); }
+function formatTime(s){ if(!s && s!==0) return '0:00'; s=Number(s)||0; const m=Math.floor(s/60), sec=Math.floor(s%60); return `${m}:${sec.toString().padStart(2,'0')}`; }
+</script>
 </body>
 </html>
